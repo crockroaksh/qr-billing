@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Billing System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+  <!-- Firebase v9 compat (works with plain JS, no bundler needed) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: hwb(216 94% 4%);
+      display: flex;
+      justify-content: center;
+      padding: 30px 16px;
+    }
+    .container {
+      background: white;
+      padding: 24px;
+      width: 460px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      text-align: center;
+    }
+    h2 { font-size: 20px; color: #1a1a2e; margin-bottom: 18px; }
+    h3 { font-size: 14px; color: #444; margin: 14px 0 6px; text-align: left; }
+    input, select {
+      width: 100%;
+      padding: 9px 12px;
+      margin: 4px 0;
+      border-radius: 7px;
+      border: 1.5px solid #ddd;
+      font-size: 14px;
+    }
+    input:focus, select:focus { border-color: #007bff; outline: none; }
+    .item-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 6px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .item-row input { margin: 0; }
+    .remove-btn {
+      background: #fee2e2;
+      color: #dc3545;
+      border: none;
+      border-radius: 6px;
+      width: 30px;
+      height: 34px;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .remove-btn:hover { background: #fecaca; }
+    .btn {
+      width: 100%;
+      padding: 11px;
+      margin: 6px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-green  { background: #28a745; color: white; }
+    .btn-gray   { background: #f0f2f5; color: #333; }
+    .btn-purple { background: #6f42c1; color: white; }
+    #add-item-btn {
+      display: inline-block;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #e8f4fd;
+      color: #007bff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    #add-item-btn:hover { background: #d0eafc; }
+    .total-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #f0f7ff; border-radius: 8px;
+      padding: 10px 14px; margin: 12px 0;
+    }
+    .total-bar span { font-size: 13px; color: #666; }
+    .total-bar strong { font-size: 20px; color: #007bff; }
+    #status { margin: 10px 0; font-size: 13px; min-height: 20px; color: #555; }
+    #status.error   { color: #dc3545; }
+    #status.success { color: #28a745; }
+    #result-area { display: none; margin-top: 16px; }
+    #result-area.show { display: block; }
+    .result-card {
+      background: #f9fafb;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px; padding: 16px;
+    }
+    #qrcode { margin: 10px auto; display: inline-block; }
+    #qrcode canvas { border-radius: 6px; }
+    .view-btn {
+      display: block; margin-top: 12px; padding: 10px;
+      background: #007bff; color: white; border-radius: 8px;
+      text-decoration: none; font-weight: 600; font-size: 14px;
+      cursor: pointer; border: none; width: 100%;
+    }
+    .view-btn:hover { background: #0056b3; }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #ccc; border-top-color: #007bff;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .col-header {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 6px; margin-bottom: 4px;
+    }
+    .col-header span {
+      font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .qr-note { font-size: 11px; color: #888; margin-top: 6px; }
+    .config-banner {
+      background: #fff8e1; border: 1px solid #ffe082;
+      border-radius: 7px; padding: 10px 14px;
+      font-size: 12px; color: #795548;
+      margin-bottom: 14px; text-align: left;
+      line-height: 1.6;
+    }
+    .config-banner strong { color: #e65100; }
+    .logo-row {
+      display: flex; align-items: center; gap: 10px; margin: 6px 0 10px;
+    }
+    .logo-row label {
+      font-size: 13px; color: #555; white-space: nowrap;
+    }
+    .logo-row input[type="file"] {
+      flex: 1; font-size: 12px; padding: 6px 10px;
+    }
+    #logo-preview {
+      display: none; max-height: 60px; border-radius: 6px;
+      border: 1px solid #ddd; margin: 4px 0 10px;
+    }
+    .cloud-badge {
+      display: inline-block; font-size: 10px; padding: 2px 7px;
+      background: #e8f5e9; color: #2e7d32; border-radius: 10px;
+      font-weight: 700; margin-left: 6px; vertical-align: middle;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <h2>&#9729;&#65039; QR Billing System</h2>
+
+  
+
+  <input type="text" id="customer" placeholder="Customer Name">
+  <input type="text" id="phone"    placeholder="Phone (91XXXXXXXXXX)">
+  <input type="date" id="date">
+
+  <!-- Cloudinary logo upload -->
+  <h3>Shop Logo <span class="cloud-badge">&#9729; Cloudinary</span></h3>
+  <div class="logo-row">
+    <label>Upload logo:</label>
+    <input type="file" id="logo-file" accept="image/*">
+  </div>
+  <img id="logo-preview" alt="Logo preview">
+
+  <h3>Items</h3>
+  <div class="col-header">
+    <span>Item</span><span>Price &#8377;</span><span>Qty</span><span></span>
+  </div>
+  <div id="items"></div>
+  <button id="add-item-btn">+ Add Item</button>
+
+  <div class="total-bar">
+    <span>Total Amount</span>
+    <strong>&#8377; <span id="total">0.00</span></strong>
+  </div>
+
+  <button class="btn btn-green"  id="generate-btn">&#129534; Generate Bill &amp; QR</button>
+  <button class="btn btn-gray"   id="download-btn">&#11015;&#65039; Download PDF</button>
+
+  <div id="status"></div>
+
+  <div id="result-area">
+    <div class="result-card">
+      <p style="font-size:13px;color:#666;margin-bottom:6px;">
+        Scan QR from <strong>any device</strong> — no Wi-Fi restriction &#127760;
+      </p>
+      <div id="qrcode"></div>
+      <p class="qr-note">&#128274; Stored securely in Firebase</p>
+      <button class="view-btn" id="view-btn">&#128065;&#65039; View Invoice</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FIREBASE CONFIG — paste your Firebase project config here
+  // Get it from: Firebase Console → Project Settings → Your apps → SDK setup
+  // ─────────────────────────────────────────────────────────────────────────────
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAvUR8hQ1VWAW3EezoAeOWW7S9lWXrAEvI",
+  authDomain: "qr-bill--system.firebaseapp.com",
+  databaseURL: "https://qr-bill--system-default-rtdb.firebaseio.com",
+  projectId: "qr-bill--system",
+  storageBucket: "qr-bill--system.firebasestorage.app",
+  messagingSenderId: "437865614962",
+  appId: "1:437865614962:web:632f477e243004aaca3ceb"
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // CLOUDINARY CONFIG — for logo/image uploads
+  // Get it from: Cloudinary Dashboard → Settings → Upload → Add upload preset (unsigned)
+  // ─────────────────────────────────────────────────────────────────────────────
+  var CLOUDINARY_CLOUD_NAME   = "dpdbaz9ge";      // e.g. "myshop123"
+  var CLOUDINARY_UPLOAD_PRESET = "qr_upload";  // e.g. "qr_billing_unsigned"
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // INVOICE PAGE URL — update this to wherever you host invoice.html
+  // If running locally with Live Server this auto-detects; for production set it:
+  // e.g. "https://yourdomain.com/invoice.html"
+  // ─────────────────────────────────────────────────────────────────────────────
+  var pathDir  = window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/") + 1);
+  var BASE_URL = window.location.origin + pathDir;
+
+  // ── INIT FIREBASE ────────────────────────────────────────────────────────────
+  firebase.initializeApp(FIREBASE_CONFIG);
+  var db = firebase.firestore();
+
+  // ── HELPERS ──────────────────────────────────────────────────────────────────
+  function setStatus(msg, type) {
+    var el = document.getElementById("status");
+    el.className = type || "";
+    el.innerHTML = msg;
+  }
+
+  function calculateTotal() {
+    var total = 0;
+    var rows = document.querySelectorAll(".item-row");
+    for (var i = 0; i < rows.length; i++) {
+      var price = parseFloat(rows[i].querySelector(".price-input").value) || 0;
+      var qty   = parseFloat(rows[i].querySelector(".qty-input").value)   || 0;
+      total += price * qty;
+    }
+    document.getElementById("total").textContent = total.toFixed(2);
+  }
+
+  function getItems() {
+    var list = [];
+    var rows = document.querySelectorAll(".item-row");
+    for (var i = 0; i < rows.length; i++) {
+      var name  = rows[i].querySelector(".name-input").value.trim();
+      var price = parseFloat(rows[i].querySelector(".price-input").value);
+      var qty   = parseFloat(rows[i].querySelector(".qty-input").value);
+      if (name && !isNaN(price) && !isNaN(qty) && price > 0 && qty > 0) {
+        list.push({ name: name, price: price, qty: qty, total: +(price * qty).toFixed(2) });
+      }
+    }
+    return list;
+  }
+
+  // ── ADD ITEM ROW ─────────────────────────────────────────────────────────────
+  function addItem() {
+    var div = document.createElement("div");
+    div.className = "item-row";
+
+    var nameInput = document.createElement("input");
+    nameInput.type = "text"; nameInput.className = "name-input"; nameInput.placeholder = "Item name";
+
+    var priceInput = document.createElement("input");
+    priceInput.type = "number"; priceInput.className = "price-input";
+    priceInput.placeholder = "0"; priceInput.min = "0"; priceInput.step = "0.01";
+    priceInput.addEventListener("input", calculateTotal);
+
+    var qtyInput = document.createElement("input");
+    qtyInput.type = "number"; qtyInput.className = "qty-input";
+    qtyInput.placeholder = "1"; qtyInput.value = "1"; qtyInput.min = "1";
+    qtyInput.addEventListener("input", calculateTotal);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.className = "remove-btn";
+    removeBtn.textContent = "\u00d7";
+    removeBtn.title = "Remove item";
+    removeBtn.addEventListener("click", function () {
+      var allRows = document.querySelectorAll(".item-row");
+      if (allRows.length > 1) { div.remove(); }
+      else { nameInput.value = ""; priceInput.value = ""; qtyInput.value = "1"; }
+      calculateTotal();
+    });
+
+    div.appendChild(nameInput);
+    div.appendChild(priceInput);
+    div.appendChild(qtyInput);
+    div.appendChild(removeBtn);
+    document.getElementById("items").appendChild(div);
+    nameInput.focus();
+  }
+
+  // ── CLOUDINARY UPLOAD ────────────────────────────────────────────────────────
+  function uploadToCloudinary(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file) { resolve(null); return; }
+
+      var formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/image/upload");
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          var res = JSON.parse(xhr.responseText);
+          resolve(res.secure_url);   // permanent HTTPS image URL
+        } else {
+          reject(new Error("Cloudinary upload failed: " + xhr.responseText));
+        }
+      };
+      xhr.onerror = function () { reject(new Error("Cloudinary network error")); };
+      xhr.send(formData);
+    });
+  }
+
+  // ── FIREBASE SAVE ────────────────────────────────────────────────────────────
+  function saveBillToFirebase(billData) {
+    // Auto-generate a Firestore doc ID (acts as our bill key)
+    return db.collection("bills").add(billData).then(function (docRef) {
+      return docRef.id;  // returns the Firestore document ID
+    });
+  }
+
+  // ── PDF BUILDER ──────────────────────────────────────────────────────────────
+  function buildPDF(customer, date, items, logoUrl) {
+    var doc   = new window.jspdf.jsPDF();
+    var grand = 0;
+
+    // Header
+    doc.setFillColor(0, 123, 255);
+    doc.rect(0, 0, 210, 30, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    doc.text("INVOICE", 105, 19, { align: "center" });
+
+    var startY = 44;
+
+    // Embed logo from Cloudinary URL if available
+    if (logoUrl) {
+      try {
+        doc.addImage(logoUrl, "PNG", 160, 32, 30, 20);
+      } catch (e) {
+        console.warn("Could not embed logo in PDF:", e.message);
+      }
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(50, 50, 50);
+    doc.text("Customer : " + customer, 14, startY);
+    doc.text("Date     : " + date,     14, startY + 8);
+
+    doc.setFillColor(0, 123, 255);
+    doc.rect(14, startY + 16, 182, 9, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Item",    18,  startY + 23);
+    doc.text("Price",  110,  startY + 23);
+    doc.text("Qty",    145,  startY + 23);
+    doc.text("Amount", 170,  startY + 23);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(40, 40, 40);
+    var y = startY + 32;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (i % 2 === 0) { doc.setFillColor(235, 245, 255); doc.rect(14, y - 6, 182, 9, "F"); }
+      doc.setFontSize(11);
+      doc.text(it.name,                      18, y);
+      doc.text("Rs." + it.price.toFixed(2), 110, y);
+      doc.text(String(it.qty),              145, y);
+      doc.text("Rs." + it.total.toFixed(2), 170, y);
+      grand += it.total;
+      y += 10;
+    }
+
+    y += 6;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, y, 196, y);
+    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(0, 123, 255);
+    doc.text("Grand Total : Rs." + grand.toFixed(2), 196, y, { align: "right" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(160, 160, 160);
+    doc.text("Thank you for your business!", 105, 285, { align: "center" });
+
+    return doc;
+  }
+
+  var currentInvoiceURL = null;
+
+  // ── GENERATE BILL ────────────────────────────────────────────────────────────
+  function generateBill() {
+    var customer  = document.getElementById("customer").value.trim();
+    var phone     = document.getElementById("phone").value.trim();
+    var date      = document.getElementById("date").value;
+    var items     = getItems();
+    var logoFile  = document.getElementById("logo-file").files[0] || null;
+
+    if (!customer)          { setStatus("&#9888; Enter customer name", "error"); return; }
+    if (items.length === 0) { setStatus("&#9888; Add at least one item with name, price & qty", "error"); return; }
+
+    document.getElementById("result-area").classList.remove("show");
+    setStatus('<span class="spinner"></span>Uploading logo &amp; saving to Firebase&#8230;');
+
+    // Step 1: Upload logo to Cloudinary (if provided), then save bill to Firestore
+    uploadToCloudinary(logoFile)
+      .then(function (logoUrl) {
+        var grandTotal = items.reduce(function (s, it) { return s + it.total; }, 0);
+
+        var billData = {
+          customer:  customer,
+          phone:     phone,
+          date:      date,
+          items:     items,
+          total:     grandTotal,
+          logoUrl:   logoUrl || null,   // Cloudinary URL (null if no logo)
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        return saveBillToFirebase(billData);
+      })
+      .then(function (billId) {
+        // Build invoice URL with Firestore doc ID as the bill key
+        var invoiceURL = BASE_URL + "invoice.html?bill=" + billId;
+        currentInvoiceURL = invoiceURL;
+
+        // Generate QR
+        var qrContainer = document.getElementById("qrcode");
+        qrContainer.innerHTML = "";
+
+        QRCode.toCanvas(invoiceURL, { width: 200, margin: 2, errorCorrectionLevel: "M" }, function (err, canvas) {
+          if (err) { setStatus("&#10060; QR error: " + err.message, "error"); return; }
+          qrContainer.appendChild(canvas);
+          document.getElementById("result-area").classList.add("show");
+          setStatus("&#10003; Bill saved to Firebase! Scan QR from any device.", "success");
+        });
+
+        // Send SMS if phone provided
+        if (phone) {
+          var grandTotal = items.reduce(function (s, it) { return s + it.total; }, 0);
+          var msg = "Hello " + customer + ", your invoice of Rs." + grandTotal.toFixed(2) + " is ready. View: " + invoiceURL;
+          setTimeout(function () {
+            window.location.href = "sms:" + phone + "?body=" + encodeURIComponent(msg);
+          }, 800);
+        }
+      })
+      .catch(function (err) {
+        console.error(err);
+        setStatus("&#10060; " + err.message, "error");
+      });
+  }
+
+  // ── VIEW INVOICE ──────────────────────────────────────────────────────────────
+  function viewInvoice() {
+    if (currentInvoiceURL) {
+      var a = document.createElement("a");
+      a.href = currentInvoiceURL; a.target = "_blank"; a.rel = "noopener";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } else {
+      setStatus("&#9888; Generate a bill first", "error");
+    }
+  }
+
+  // ── DOWNLOAD PDF ─────────────────────────────────────────────────────────────
+  function downloadPDF() {
+    var customer = document.getElementById("customer").value.trim() || "Customer";
+    var date     = document.getElementById("date").value || "";
+    var items    = getItems();
+    var logoFile = document.getElementById("logo-file").files[0] || null;
+    if (items.length === 0) { setStatus("&#9888; Add items first", "error"); return; }
+
+    setStatus('<span class="spinner"></span>Uploading logo for PDF&#8230;');
+
+    uploadToCloudinary(logoFile).then(function (logoUrl) {
+      var blob = buildPDF(customer, date, items, logoUrl).output("blob");
+      var url  = URL.createObjectURL(blob);
+      var a    = document.createElement("a");
+      a.href = url; a.download = "invoice_" + Date.now() + ".pdf";
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus("&#10003; PDF downloaded!", "success");
+    }).catch(function (err) {
+      setStatus("&#10060; PDF error: " + err.message, "error");
+    });
+  }
+
+  // ── LOGO PREVIEW ─────────────────────────────────────────────────────────────
+  document.getElementById("logo-file").addEventListener("change", function (e) {
+    var file = e.target.files[0];
+    var preview = document.getElementById("logo-preview");
+    if (file) {
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        preview.src = ev.target.result;
+        preview.style.display = "block";
+      };
+      reader.readAsDataURL(file);
+    } else {
+      preview.style.display = "none";
+    }
+  });
+
+  // ── INIT ──────────────────────────────────────────────────────────────────────
+  document.getElementById("add-item-btn").addEventListener("click", addItem);
+  document.getElementById("generate-btn").addEventListener("click", generateBill);
+  document.getElementById("download-btn").addEventListener("click", downloadPDF);
+  document.getElementById("view-btn").addEventListener("click", viewInvoice);
+  document.getElementById("date").valueAsDate = new Date();
+  addItem();
+
+})();
+</script>
+</body>
+</html>
