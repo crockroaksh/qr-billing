@@ -155,6 +155,8 @@
 
 <script>
 (function () {
+  console.log("Script started");
+alert("Script started");
 
   // ── CONFIG (your real credentials) ───────────────────────────────────────────
   var FIREBASE_CONFIG = {
@@ -173,6 +175,8 @@
 
   // ── INIT FIREBASE ────────────────────────────────────────────────────────────
   firebase.initializeApp(FIREBASE_CONFIG);
+  console.log("Firebase initialized");
+alert("Firebase initialized");
   var db = firebase.firestore();
 
   // ── HELPERS ──────────────────────────────────────────────────────────────────
