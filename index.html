@@ -128,15 +128,15 @@
     <span>Item</span><span>Price &#8377;</span><span>Qty</span><span></span>
   </div>
   <div id="items"></div>
-  <button id="add-item-btn">+ Add Item</button>
+  <button type="button" id="add-item-btn">+ Add Item</button>
 
   <div class="total-bar">
     <span>Total Amount</span>
     <strong>&#8377; <span id="total">0.00</span></strong>
   </div>
 
-  <button class="btn btn-green" id="generate-btn">&#129534; Generate Bill &amp; QR</button>
-  <button class="btn btn-gray"  id="download-btn">&#11015;&#65039; Download PDF</button>
+  <button type="button" class="btn btn-green" id="generate-btn">&#129534; Generate Bill &amp; QR</button>
+ <button type="button" class="btn btn-gray" id="download-btn">&#11015;&#65039; Download PDF</button>
 
   <div id="status"></div>
 
@@ -147,7 +147,7 @@
       </p>
       <div id="qrcode"></div>
       <p class="qr-note">&#128274; Stored securely in Firebase</p>
-      <button class="view-btn" id="view-btn">&#128065;&#65039; View Invoice</button>
+      <button type="button" class="view-btn" id="view-btn">&#128065;&#65039; View Invoice</button>
     </div>
   </div>
 
@@ -311,6 +311,8 @@
 
   // ── GENERATE BILL ────────────────────────────────────────────────────────────
   function generateBill() {
+    alert("Generate button clicked");
+console.log("Generate clicked");
     var customer = document.getElementById("customer").value.trim();
     var phone    = document.getElementById("phone").value.trim();
     var date     = document.getElementById("date").value;
