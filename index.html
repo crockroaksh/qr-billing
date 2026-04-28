@@ -328,9 +328,12 @@ console.log("Generate clicked");
 
     document.getElementById("result-area").classList.remove("show");
     setStatus('<span class="spinner"></span>Saving to Firebase&#8230;');
+    alert("Started saving");
 
     uploadToCloudinary(logoFile)
       .then(function (logoUrl) {
+        alert("Cloudinary upload done");
+console.log("Logo URL:", logoUrl);
         var grandTotal = items.reduce(function (s, it) { return s + it.total; }, 0);
         return db.collection("bills").add({
           customer:  customer,
@@ -343,6 +346,8 @@ console.log("Generate clicked");
         });
       })
       .then(function (docRef) {
+        alert("Firebase save success");
+console.log(docRef.id);
         var invoiceURL = INVOICE_URL + "?bill=" + docRef.id;
         currentInvoiceURL = invoiceURL;
 
@@ -350,6 +355,7 @@ console.log("Generate clicked");
         qrContainer.innerHTML = "";
 
         QRCode.toCanvas(invoiceURL, { width: 200, margin: 2, errorCorrectionLevel: "M" }, function (err, canvas) {
+          alert("QR generation started");
           if (err) { setStatus("&#10060; QR error: " + err.message, "error"); return; }
           qrContainer.appendChild(canvas);
           document.getElementById("result-area").classList.add("show");
