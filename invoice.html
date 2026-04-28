@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invoice</title>
+
+  <!-- Firebase v9 compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      padding: 20px 16px;
+    }
+    .card {
+      background: #fff;
+      max-width: 520px;
+      margin: 0 auto;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,.12);
+    }
+    .header {
+      background: #007bff;
+      color: #fff;
+      padding: 24px;
+      text-align: center;
+      position: relative;
+    }
+    .header h1 { margin: 0; font-size: 28px; letter-spacing: 3px; }
+    .header p  { margin: 6px 0 0; opacity: .85; font-size: 13px; }
+    .header .logo {
+      position: absolute;
+      right: 20px; top: 50%;
+      transform: translateY(-50%);
+      max-height: 56px; max-width: 80px;
+      border-radius: 6px;
+      object-fit: contain;
+      background: rgba(255,255,255,0.15);
+      padding: 3px;
+    }
+    .info {
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .info span { font-size: 14px; color: #555; }
+    .info strong { color: #222; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #007bff; color: #fff; }
+    thead th {
+      padding: 11px 14px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    thead th:not(:first-child) { text-align: right; }
+    thead th:nth-child(3) { text-align: center; }
+    tbody td {
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #333;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    tbody td:not(:first-child) { text-align: right; }
+    tbody td:nth-child(3) { text-align: center; }
+    .total-row td {
+      padding: 14px;
+      font-weight: 700;
+      font-size: 16px;
+      color: #007bff;
+      background: #f0f7ff;
+      border-top: 2px solid #007bff;
+    }
+    .total-row td:last-child { text-align: right; }
+    .footer {
+      text-align: center;
+      padding: 18px;
+      font-size: 12px;
+      color: #aaa;
+    }
+    .print-btn {
+      display: block;
+      max-width: 520px;
+      margin: 16px auto 0;
+      padding: 12px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .print-btn:hover { background: #0056b3; }
+    .error-box {
+      max-width: 520px;
+      margin: 40px auto;
+      background: #fff3f3;
+      border: 1px solid #f5c2c2;
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      color: #c0392b;
+      font-size: 15px;
+    }
+    .loading-box {
+      max-width: 520px;
+      margin: 60px auto;
+      text-align: center;
+      color: #555;
+      font-size: 15px;
+    }
+    .spinner {
+      display: inline-block; width: 28px; height: 28px;
+      border: 3px solid #ddd; border-top-color: #007bff;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin-bottom: 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media print {
+      .print-btn { display: none; }
+      body { background: white; padding: 0; }
+      .card { box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="root">
+  <div class="loading-box">
+    <div class="spinner"></div><br>Loading invoice&#8230;
+  </div>
+</div>
+
+<script>
+(function () {
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FIREBASE CONFIG — must match the config in index.html exactly
+  // ─────────────────────────────────────────────────────────────────────────────
+  var FIREBASE_CONFIG = {
+    apiKey:            "YOUR_API_KEY",
+    authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId:         "YOUR_PROJECT_ID",
+    storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId:             "YOUR_APP_ID"
+  };
+
+  firebase.initializeApp(FIREBASE_CONFIG);
+  var db   = firebase.firestore();
+  var root = document.getElementById("root");
+
+  // ── URL param helper ─────────────────────────────────────────────────────────
+  function getParam(name) {
+    var search = window.location.search.substring(1);
+    var pairs  = search.split("&");
+    for (var i = 0; i < pairs.length; i++) {
+      var pair = pairs[i].split("=");
+      if (decodeURIComponent(pair[0]) === name) {
+        return decodeURIComponent(pair[1] || "");
+      }
+    }
+    return null;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  var billId = getParam("bill");
+
+  if (!billId) {
+    root.innerHTML = '<div class="error-box">&#10060; No bill ID provided in URL.</div>';
+    return;
+  }
+
+  // ── Fetch bill from Firestore ────────────────────────────────────────────────
+  db.collection("bills").doc(billId).get()
+    .then(function (docSnap) {
+      if (!docSnap.exists) {
+        root.innerHTML = '<div class="error-box">' +
+          '&#10060; <strong>Invoice not found.</strong><br><br>' +
+          'The bill ID <code>' + escapeHtml(billId) + '</code> does not exist in the database.' +
+          '</div>';
+        return;
+      }
+
+      var bill       = docSnap.data();
+      var customer   = bill.customer   || "Customer";
+      var date       = bill.date       || "\u2014";
+      var items      = bill.items      || [];
+      var grandTotal = bill.total      || 0;
+      var logoUrl    = bill.logoUrl    || null;
+
+      // Build item rows
+      var rows = "";
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        rows += '<tr style="background:' + (i % 2 === 0 ? "#f0f7ff" : "#fff") + '">' +
+          '<td>' + escapeHtml(it.name) + '</td>' +
+          '<td>&#8377;' + Number(it.price).toFixed(2) + '</td>' +
+          '<td>' + it.qty + '</td>' +
+          '<td>&#8377;' + Number(it.total).toFixed(2) + '</td>' +
+          '</tr>';
+      }
+
+      // Logo tag (from Cloudinary) — shown inside header if present
+      var logoTag = logoUrl
+        ? '<img class="logo" src="' + escapeHtml(logoUrl) + '" alt="Shop logo" crossorigin="anonymous">'
+        : '';
+
+      root.innerHTML =
+        '<div class="card">' +
+          '<div class="header">' +
+            logoTag +
+            '<h1>INVOICE</h1><p>Thank you for your business</p>' +
+          '</div>' +
+          '<div class="info">' +
+            '<span>Customer: <strong>' + escapeHtml(customer) + '</strong></span>' +
+            '<span>Date: <strong>' + escapeHtml(date) + '</strong></span>' +
+          '</div>' +
+          '<table>' +
+            '<thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Amount</th></tr></thead>' +
+            '<tbody>' +
+              rows +
+              '<tr class="total-row"><td colspan="3">Grand Total</td><td>&#8377;' + Number(grandTotal).toFixed(2) + '</td></tr>' +
+            '</tbody>' +
+          '</table>' +
+          '<div class="footer">Generated by QR Billing System &bull; ' + escapeHtml(billId) + '</div>' +
+        '</div>' +
+        '<button class="print-btn" onclick="window.print()">&#128438; Print Invoice</button>';
+    })
+    .catch(function (err) {
+      console.error(err);
+      root.innerHTML = '<div class="error-box">' +
+        '&#10060; <strong>Failed to load invoice.</strong><br><br>' +
+        escapeHtml(err.message) +
+        '</div>';
+    });
+
+})();
+</script>
+</body>
+</html>
