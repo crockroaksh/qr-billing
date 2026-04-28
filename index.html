@@ -522,14 +522,16 @@
     setStatus("PDF downloaded!", "success");
   }
 
-  document.getElementById("add-item-btn").addEventListener("click", addItem);
-  document.getElementById("generate-btn").addEventListener("click", generateBill);
-  document.getElementById("download-btn").addEventListener("click", downloadPDF);
-  document.getElementById("view-btn").addEventListener("click", viewInvoice);
+ document.getElementById("add-item-btn").addEventListener("click", addItem);
+document.getElementById("generate-btn").addEventListener("click", generateBill);
+document.getElementById("download-btn").addEventListener("click", downloadPDF);
+document.getElementById("view-btn").addEventListener("click", viewInvoice);
 
-  document.getElementById("date").valueAsDate = new Date();
+document.getElementById("date").valueAsDate = new Date();
 
-  addItem();
+addItem(); // creates first item row automatically
+
+})();
 
 })();
 </script>
