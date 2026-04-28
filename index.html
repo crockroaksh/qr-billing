@@ -116,13 +116,7 @@
   <input type="text" id="phone"    placeholder="Phone (91XXXXXXXXXX)">
   <input type="date" id="date">
 
-  <h3>Shop Logo <span class="cloud-badge">&#9729; Cloudinary</span></h3>
-  <div class="logo-row">
-    <label>Upload logo:</label>
-    <input type="file" id="logo-file" accept="image/*">
-  </div>
-  <img id="logo-preview" alt="Logo preview">
-
+  
   <h3>Items</h3>
   <div class="col-header">
     <span>Item</span><span>Price &#8377;</span><span>Qty</span><span></span>
@@ -155,8 +149,7 @@
 
 <script>
 (function () {
-  console.log("Script started");
-alert("Script started");
+
 
   // ── CONFIG (your real credentials) ───────────────────────────────────────────
   var FIREBASE_CONFIG = {
@@ -175,8 +168,7 @@ alert("Script started");
 
   // ── INIT FIREBASE ────────────────────────────────────────────────────────────
   firebase.initializeApp(FIREBASE_CONFIG);
-  console.log("Firebase initialized");
-alert("Firebase initialized");
+  
   var db = firebase.firestore();
 
   // ── HELPERS ──────────────────────────────────────────────────────────────────
@@ -275,10 +267,7 @@ alert("Firebase initialized");
     doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(255, 255, 255);
     doc.text("INVOICE", 105, 19, { align: "center" });
 
-    if (logoUrl) {
-      try { doc.addImage(logoUrl, "PNG", 160, 32, 30, 20); }
-      catch (e) { console.warn("Logo embed skipped"); }
-    }
+    
 
     doc.setFont("helvetica", "normal"); doc.setFontSize(12); doc.setTextColor(50, 50, 50);
     doc.text("Customer : " + customer, 14, 44);
@@ -315,7 +304,7 @@ alert("Firebase initialized");
 
   // ── GENERATE BILL ────────────────────────────────────────────────────────────
   function generateBill() {
-    alert("Generate button clicked");
+    
 console.log("Generate clicked");
     var customer = document.getElementById("customer").value.trim();
     var phone    = document.getElementById("phone").value.trim();
@@ -328,11 +317,11 @@ console.log("Generate clicked");
 
     document.getElementById("result-area").classList.remove("show");
     setStatus('<span class="spinner"></span>Saving to Firebase&#8230;');
-    alert("Started saving");
+    
 
     uploadToCloudinary(logoFile)
       .then(function (logoUrl) {
-        alert("Cloudinary upload done");
+    
 console.log("Logo URL:", logoUrl);
         var grandTotal = items.reduce(function (s, it) { return s + it.total; }, 0);
         return db.collection("bills").add({
@@ -341,13 +330,13 @@ console.log("Logo URL:", logoUrl);
           date:      date,
           items:     items,
           total:     grandTotal,
-          logoUrl:   logoUrl || null,
+          
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
       })
       .then(function (docRef) {
-        alert("Firebase save success");
-console.log(docRef.id);
+        
+
         var invoiceURL = INVOICE_URL + "?bill=" + docRef.id;
         currentInvoiceURL = invoiceURL;
 
@@ -355,7 +344,7 @@ console.log(docRef.id);
         qrContainer.innerHTML = "";
 
         QRCode.toCanvas(invoiceURL, { width: 200, margin: 2, errorCorrectionLevel: "M" }, function (err, canvas) {
-          alert("QR generation started");
+      
           if (err) { setStatus("&#10060; QR error: " + err.message, "error"); return; }
           qrContainer.appendChild(canvas);
           document.getElementById("result-area").classList.add("show");
@@ -392,7 +381,8 @@ console.log(docRef.id);
     var customer = document.getElementById("customer").value.trim() || "Customer";
     var date     = document.getElementById("date").value || "";
     var items    = getItems();
-    var logoFile = document.getElementById("logo-file").files[0] || null;
+    Promise.resolve(null)
+  .then(function () {
     if (items.length === 0) { setStatus("&#9888; Add items first", "error"); return; }
 
     setStatus('<span class="spinner"></span>Preparing PDF&#8230;');
@@ -408,17 +398,7 @@ console.log(docRef.id);
     });
   }
 
-  // ── LOGO PREVIEW ─────────────────────────────────────────────────────────────
-  document.getElementById("logo-file").addEventListener("change", function (e) {
-    var file    = e.target.files[0];
-    var preview = document.getElementById("logo-preview");
-    if (file) {
-      var reader = new FileReader();
-      reader.onload = function (ev) { preview.src = ev.target.result; preview.style.display = "block"; };
-      reader.readAsDataURL(file);
-    } else {
-      preview.style.display = "none";
-    }
+ 
   });
 
   // ── INIT ─────────────────────────────────────────────────────────────────────
